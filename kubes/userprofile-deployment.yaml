@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: userprofile-deployment
+  labels:
+    app: userprofile
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: userprofile
+  template:
+    metadata:
+      labels:
+        app: userprofile
+    spec:
+      containers:
+      - name: userprofile
+        image: registryhbp2955.azurecr.io/tripinsights/userprofile:1.0
+        ports:
+        - containerPort: 8080
+        env:
+          - name: PORT
+            value: "8080"
+          - name: SQL_USER
+            value: "sqladminhBp2955"
+          - name: SQL_PASSWORD
+            value: "iA3wx6Js0"
+          - name: SQL_SERVER
+            value: "sqlserverhbp2955.database.windows.net"
+          - name: SQL_DBNAME
+            value: "mydrivingDB"
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: userprofile-service
+spec:
+  selector:
+    app: userprofile
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
