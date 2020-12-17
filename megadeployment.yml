@@ -1,0 +1,310 @@
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: web
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: poi
+  labels:
+    app: poi
+  namespace: api
+spec:
+  ports:
+    - port: 80
+  selector:
+    app: poi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: poi
+  namespace: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: poi
+  template:
+    metadata:
+      labels:
+        app: poi
+    spec:
+      containers:
+      - name: poi
+        image: registryhbp2955.azurecr.io/tripinsights/poi:latest
+        env:
+        - name: SQL_USER
+          valueFrom:
+            secretKeyRef:
+              name: sqlsecret
+              key: username
+        - name: SQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: sqlsecret
+              key: password
+        - name: SQL_SERVER
+          value: "sqlserverhbp2955.database.windows.net"
+        - name: SQL_DBNAME
+          value: "myDrivingDB"
+        ports:
+        - containerPort: 80
+      volumes:
+      - name: secrets-store-inline
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: "akskv123"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: userprofile-deployment
+  labels:
+    app: userprofile
+  namespace: api
+spec:
+  replicas: 30
+  selector:
+    matchLabels:
+      app: userprofile
+  template:
+    metadata:
+      labels:
+        app: userprofile
+    spec:
+      containers:
+      - name: userprofile
+        image: registryhbp2955.azurecr.io/tripinsights/userprofile:1.0
+        ports:
+        - containerPort: 8080
+        env:
+          - name: PORT
+            value: "8080"
+          - name: SQL_USER
+            valueFrom:
+              secretKeyRef:
+                name: sqlsecret
+                key: username
+          - name: SQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: sqlsecret
+                key: password
+          - name: SQL_SERVER
+            value: "sqlserverhbp2955.database.windows.net"
+          - name: SQL_DBNAME
+            value: "mydrivingDB"
+      volumes:
+      - name: secrets-store-inline
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: "akskv123"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: userprofile-service
+  namespace: api
+spec:
+  selector:
+    app: userprofile
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trips
+  labels:
+    app: trips
+  namespace: api
+spec:
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+  selector:
+    app: trips
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trips
+  namespace: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: trips
+  template:
+    metadata:
+      labels:
+        app: trips
+    spec:
+      containers:
+      - name: trips
+        image: registryhbp2955.azurecr.io/tripinsights/trips:latest
+        env:
+        - name: SQL_USER
+          valueFrom:
+            secretKeyRef:
+              name: sqlsecret
+              key: username
+        - name: SQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: sqlsecret
+              key: password
+        - name: SQL_SERVER
+          value: "sqlserverhbp2955.database.windows.net"
+        - name: SQL_DBNAME
+          value: "mydrivingDB"
+        ports:
+        - containerPort: 80
+      volumes:
+      - name: secrets-store-inline
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: "akskv123"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tripviewer-deployment
+  labels:
+    app: tripviewer
+  namespace: web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: tripviewer
+  template:
+    metadata:
+      labels:
+        app: tripviewer
+    spec:
+      containers:
+      - name: tripviewer
+        image: registryhbp2955.azurecr.io/tripinsights/tripviewer:1.0
+        ports:
+        - containerPort: 80
+        env:
+          - name: USERPROFILE_API_ENDPOINT
+            value: "http://userprofile-service"
+          - name: TRIPS_API_ENDPOINT
+            value: "http://trips"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-java
+  labels:
+    app: user-java
+  namespace: api
+spec:
+  ports:
+    - port: 80
+  selector:
+    app: user-java
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-java
+  namespace: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: user-java
+  template:
+    metadata:
+      labels:
+        app: user-java
+    spec:
+      containers:
+      - name: user-java
+        image: registryhbp2955.azurecr.io/tripinsights/user-java:latest
+        env:
+        - name: SQL_USER
+          valueFrom:
+            secretKeyRef:
+              name: sqlsecret
+              key: username
+        - name: SQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: sqlsecret
+              key: password
+        - name: SQL_SERVER
+          value: "sqlserverhbp2955.database.windows.net"
+        - name: SQL_DBNAME
+          value: "myDrivingDB"
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: secrets-store-inline
+          mountPath: "/secrets"
+          readOnly: true
+      volumes:
+      - name: secrets-store-inline
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: akskv123
+          nodePublishSecretRef:
+            name: secrets-store-creds
+---
+apiVersion: secrets-store.csi.x-k8s.io/v1alpha1
+kind: SecretProviderClass
+metadata:
+  name: akskv123
+  namespace: api
+spec:
+  provider: azure
+  secretObjects:                              # [OPTIONAL] SecretObject defines the desired state of synced K8s secret objects
+  - data:
+    - objectName: sqluser1                    # name of the mounted content to sync. this could be the object name or object alias 
+      key: username
+    - objectName: sqlpassword1                    # name of the mounted content to sync. this could be the object name or object alias 
+      key: password
+    secretName: sqlsecret
+    type: Opaque
+  parameters:
+    usePodIdentity: "false"                   # [REQUIRED] Set to "true" if using managed identities
+    useVMManagedIdentity: "false"             # [OPTIONAL] if not provided, will default to "false"
+    userAssignedIdentityID: "ccb1de50-6a6c-493d-8925-52f753ffd001"
+    keyvaultName: "akskv123"          # [REQUIRED] the name of the key vault
+                                              #     az keyvault show --name contosoKeyVault5
+                                              #     the preceding command will display the key vault metadata, which includes the subscription ID, resource group name, key vault 
+    objects:  |
+      array:
+        - |
+          objectName: sqluser1
+          objectType: secret
+        - |
+          objectName: sqlpassword1
+          objectType: secret
+    resourceGroup: "teamResources"     # [REQUIRED] the resource group name of the key vault
+    subscriptionId: "4ec6b1b9-7c2b-4e51-9ccc-0d3f132a8fb4"          # [REQUIRED] the subscription ID of the key vault
+    tenantId: "423cb5ae-47a2-444f-a224-f2722e3180f3"                      # [REQUIRED] the tenant ID of the key vault
+---
+
